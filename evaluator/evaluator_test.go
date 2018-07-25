@@ -50,7 +50,7 @@ func TestEvalBooleanExpression(t *testing.T) {
 		{"1 == 1", true},
 		{"1 != 1", false},
 		{"1 == 2", false},
-		{"1 != 2", false},
+		{"1 != 2", true},
 	}
 
 	for _, tt := range tests {
@@ -71,12 +71,12 @@ func TestBangOperator(t *testing.T) {
 		{"!!false", false},
 		{"!!5", true},
 		{"true == true", true},
-		{"false == false", false},
+		{"false == false", true},
 		{"true == false", false},
 		{"true != false", true},
 		{"false != true", true},
 		{"(1 < 2) == true", true},
-		{"(1 > 2) == false", false},
+		{"(1 > 2) == false", true},
 		{"(1 > 2) == true", false},
 		{"(1 > 2) == false", true},
 	}
@@ -108,6 +108,81 @@ func TestIfElseExpressions(t *testing.T) {
 			testIntegerObject(t, evaluated, int64(integer))
 		} else {
 			testNullObject(t, evaluated)
+		}
+	}
+}
+
+func TestReturnStatements(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int64
+	}{
+		{"return 10;", 10},
+		{"return 10; 9;", 10},
+		{"return 2 * 5; 9;", 10},
+		{"9; return 2 * 5; 9;", 10},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testIntegerObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestErrorHandring(t *testing.T) {
+	tests := []struct {
+		input           string
+		expectedMessage string
+	}{
+		{
+			"5 + true;",
+			"type mismatch: INTEGER + BOOLEAN",
+		},
+		{
+			"5 + true; 5;",
+			"type mismatch: INTEGER + BOOLEAN",
+		},
+		{
+			"-true",
+			"unknown operator: -BOOLEAN",
+		},
+		{
+			"true + false;",
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		{
+			"5; true + false; 5;",
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		{
+			"if (10 > 1) {true + false}",
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		{
+			`
+			if (10 > 1) {
+				if (10 > 1) {
+					return true + false;
+				}
+				return 1;
+			}
+			`,
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+	}
+
+	for i, tt := range tests {
+		evaluated := testEval(tt.input)
+		t.Log(i)
+
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("no error object returned. got=%T(%+v)", evaluated, evaluated)
+			continue
+		}
+
+		if errObj.Message != tt.expectedMessage {
+			t.Errorf("wrong error message. expected=%q, got%q", tt.expectedMessage, errObj.Message)
 		}
 	}
 }
